@@ -27,8 +27,6 @@
 
 // export default App;
 
-
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -40,38 +38,34 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  SafeAreaView,
 } from 'react-native';
 import { BleManager, Device, State } from 'react-native-ble-plx';
 import WifiManager from 'react-native-wifi-reborn';
-import { AnimatedCircularProgress } from 'react-native-circular-progress';
 
 // Type definitions
 interface DeviceData {
   device_id: string;
   cutoff_detection: boolean;
   low_battery_indication: boolean;
-  power_consumption?: number;
   timestamp?: string;
 }
 
-type ScreenType = 'setup' | 'scanning' | 'connecting' | 'monitoring';
-type ActiveTabType = 'cutoff' | 'battery';
-
-interface CircularProgressProps {
-  percentage: number;
-  color: string;
-  children: React.ReactNode;
+interface ConnectedDevice {
+  id: string;
+  name: string;
+  data: DeviceData;
 }
 
+type ScreenType = 'setup' | 'scanning' | 'connecting' | 'monitoring';
+
 const App: React.FC = () => {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('setup');
-  const [activeTab, setActiveTab] = useState<ActiveTabType>('cutoff');
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>('monitoring');
   const [bleManager] = useState<BleManager>(new BleManager());
   const [scannedDevices, setScannedDevices] = useState<Device[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [deviceData, setDeviceData] = useState<DeviceData | null>(null);
+  const [connectedDevices, setConnectedDevices] = useState<ConnectedDevice[]>([]);
   const [isScanning, setIsScanning] = useState<boolean>(false);
-  const [isConnected, setIsConnected] = useState<boolean>(false);
 
   useEffect(() => {
     requestPermissions();
@@ -79,6 +73,59 @@ const App: React.FC = () => {
       bleManager.destroy();
     };
   }, [bleManager]);
+
+  // Simulate multiple devices data when monitoring starts
+  useEffect(() => {
+    if (currentScreen === 'monitoring') {
+      const interval = setInterval(() => {
+        const mockDevices: ConnectedDevice[] = [
+          {
+            id: '265624',
+            name: 'ESP32_Device_1',
+            data: {
+              device_id: 'ESP_34:CD:B0:85:8C:AC',
+              cutoff_detection: Math.random() > 0.7,
+              low_battery_indication: Math.random() > 0.6,
+              timestamp: new Date().toLocaleTimeString(),
+            }
+          },
+          {
+            id: '265625',
+            name: 'ESP32_Device_2',
+            data: {
+              device_id: 'ESP_34:CD:B0:85:8C:AD',
+              cutoff_detection: Math.random() > 0.5,
+              low_battery_indication: Math.random() > 0.5,
+              timestamp: new Date().toLocaleTimeString(),
+            }
+          },
+          {
+            id: '265626',
+            name: 'ESP32_Device_3',
+            data: {
+              device_id: 'ESP_34:CD:B0:85:8C:AE',
+              cutoff_detection: Math.random() > 0.8,
+              low_battery_indication: Math.random() > 0.8,
+              timestamp: new Date().toLocaleTimeString(),
+            }
+          },
+          {
+            id: '265627',
+            name: 'ESP32_Device_4',
+            data: {
+              device_id: 'ESP_34:CD:B0:85:8C:AF',
+              cutoff_detection: Math.random() > 0.9,
+              low_battery_indication: Math.random() > 0.9,
+              timestamp: new Date().toLocaleTimeString(),
+            }
+          }
+        ];
+        setConnectedDevices(mockDevices);
+      }, 3000);
+
+      return () => clearInterval(interval);
+    }
+  }, [currentScreen]);
 
   const requestPermissions = async (): Promise<void> => {
     if (Platform.OS === 'android') {
@@ -128,7 +175,6 @@ const App: React.FC = () => {
         }
       });
 
-      // Stop scanning after 10 seconds
       setTimeout(() => {
         bleManager.stopDeviceScan();
         setIsScanning(false);
@@ -144,18 +190,12 @@ const App: React.FC = () => {
       setCurrentScreen('connecting');
       setSelectedDevice(device);
       
-      // Connect to BLE device
       const connectedDevice = await device.connect();
       await connectedDevice.discoverAllServicesAndCharacteristics();
       
-      // Configure WiFi (this would typically involve sending WiFi credentials to ESP32)
       await configureWiFi(connectedDevice);
       
-      setIsConnected(true);
       setCurrentScreen('monitoring');
-      
-      // Start monitoring data
-      startDataMonitoring(connectedDevice);
       
     } catch (error) {
       console.log('Connection error:', error);
@@ -165,53 +205,52 @@ const App: React.FC = () => {
   };
 
   const configureWiFi = async (device: Device): Promise<void> => {
-    // This is a simplified version - in reality, you'd send WiFi credentials to ESP32
     try {
       const wifiNetworks = await WifiManager.loadWifiList();
-      // You would typically show a WiFi selection screen here
-      // and send the selected network credentials to the ESP32
       console.log('Available WiFi networks:', wifiNetworks);
     } catch (error) {
       console.log('WiFi configuration error:', error);
     }
   };
 
-  const startDataMonitoring = (device: Device): NodeJS.Timeout => {
-    // Simulate receiving data from ESP32
-    const interval = setInterval(() => {
-      const mockData: DeviceData = {
-        device_id: "ESP_34:CD:B0:85:8C:AC",
-        cutoff_detection: Math.random() > 0.7,
-        low_battery_indication: Math.random() > 0.8,
-        power_consumption: Math.floor(Math.random() * 15) + 8,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setDeviceData(mockData);
-    }, 3000);
 
-    // Store interval reference for cleanup
-    return interval;
-  };
+  const StatusPill: React.FC<{ status: boolean; label: string }> = ({ status, label }) => (
+    <View style={[
+      styles.statusPill,
+      status ? styles.statusPillTrue : styles.statusPillFalse
+    ]}>
+      <Text style={[
+        styles.statusPillText,
+        status ? styles.statusPillTextTrue : styles.statusPillTextFalse
+      ]}>
+        {status ? 'True' : 'False'}
+      </Text>
+    </View>
+  );
 
-  const CircularProgress: React.FC<CircularProgressProps> = ({ percentage, color, children }) => (
-    <View style={styles.circularProgressContainer}>
-      <AnimatedCircularProgress
-        size={200}
-        width={8}
-        fill={percentage}
-        tintColor={color}
-        backgroundColor="#f3f4f6"
-        lineCap="round"
-      >
-        {() => children}
-      </AnimatedCircularProgress>
+  const DeviceCard: React.FC<{ device: ConnectedDevice }> = ({ device }) => (
+    <View style={styles.deviceCard}>
+      <View style={styles.deviceIdBadge}>
+        <Text style={styles.deviceIdText}>Device ID_{device.id}</Text>
+      </View>
+      
+      <View style={styles.statusRow}>
+        <Text style={styles.statusLabel}>Power Cut-off</Text>
+        <StatusPill status={device.data.cutoff_detection} label="Power Cut-off" />
+      </View>
+      
+      <View style={styles.statusRow}>
+        <Text style={styles.statusLabel}>Battery Low</Text>
+        <StatusPill status={device.data.low_battery_indication} label="Battery Low" />
+      </View>
     </View>
   );
 
   // Setup Screen
   if (currentScreen === 'setup') {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
+        
         <Text style={styles.header}>Add Device</Text>
         
         <View style={styles.buttonContainer}>
@@ -251,14 +290,14 @@ const App: React.FC = () => {
         </ScrollView>
 
         <View style={styles.bottomIndicator} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   // Connecting Screen
   if (currentScreen === 'connecting') {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <Text style={styles.header}>Connecting to Device</Text>
         
         <View style={styles.connectingContainer}>
@@ -272,105 +311,27 @@ const App: React.FC = () => {
         </View>
         
         <View style={styles.bottomIndicator} />
-      </View>
+      </SafeAreaView>
     );
   }
 
-  // Monitoring Screen
+  // Monitoring Screen - New Dashboard Design
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Welcome to the Device</Text>
-      
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'cutoff' && styles.activeTab]}
-          onPress={() => setActiveTab('cutoff')}
+    <View style={styles.dashboardContainer}>
+      <View style={styles.dashboardContent}>
+        <Text style={styles.welcomeText}>Welcome to the Device</Text>
+        
+        <ScrollView 
+          style={styles.devicesScrollView}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.tabText, activeTab === 'cutoff' && styles.activeTabText]}>
-            Cut-off detection
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'battery' && styles.activeTab]}
-          onPress={() => setActiveTab('battery')}
-        >
-          <Text style={[styles.tabText, activeTab === 'battery' && styles.activeTabText]}>
-            Battery indication
-          </Text>
-        </TouchableOpacity>
+          {connectedDevices.map((device) => (
+            <DeviceCard key={device.id} device={device} />
+          ))}
+        </ScrollView>
+        
+        <View style={styles.bottomIndicator} />
       </View>
-
-      <View style={styles.contentContainer}>
-        {activeTab === 'cutoff' ? (
-          <View style={styles.monitoringContent}>
-            <CircularProgress
-              percentage={75}
-              color={deviceData?.cutoff_detection ? '#ef4444' : '#3b82f6'}
-            >
-              <View style={styles.progressContent}>
-                <Text style={styles.powerIcon}>⚡</Text>
-                <Text style={styles.powerValue}>
-                  {deviceData?.power_consumption || 12}Kw
-                </Text>
-                <Text style={styles.timeText}>
-                  {new Date().toLocaleTimeString('en-US', {
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </Text>
-              </View>
-            </CircularProgress>
-
-            <View style={[
-              styles.statusBadge,
-              deviceData?.cutoff_detection ? styles.alertBadge : styles.normalBadge
-            ]}>
-              <Text style={[
-                styles.statusText,
-                deviceData?.cutoff_detection ? styles.alertText : styles.normalText
-              ]}>
-                {deviceData?.cutoff_detection ? 'Power Cut-off Detected' : 'Power flow is Sustainable'}
-              </Text>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.monitoringContent}>
-            <CircularProgress
-              percentage={deviceData?.low_battery_indication ? 25 : 85}
-              color={deviceData?.low_battery_indication ? '#ef4444' : '#3b82f6'}
-            >
-              <View style={styles.progressContent}>
-                <Text style={styles.powerIcon}>🔋</Text>
-                <Text style={styles.powerValue}>
-                  {deviceData?.low_battery_indication ? 'Low Charged' : 'Charged'}
-                </Text>
-                <Text style={styles.timeText}>
-                  {new Date().toLocaleTimeString('en-US', {
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </Text>
-              </View>
-            </CircularProgress>
-
-            <View style={[
-              styles.statusBadge,
-              deviceData?.low_battery_indication ? styles.alertBadge : styles.normalBadge
-            ]}>
-              <Text style={[
-                styles.statusText,
-                deviceData?.low_battery_indication ? styles.alertText : styles.normalText
-              ]}>
-                {deviceData?.low_battery_indication ? 'Low Battery Detected' : 'Battery is Sustainable'}
-              </Text>
-            </View>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.bottomIndicator} />
     </View>
   );
 };
@@ -380,32 +341,53 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  dashboardContainer: {
+    flex: 1,
+    backgroundColor: '#2d2d2d',
+  },
+  dashboardHeader: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  dashboardTitle: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#9ca3af',
+  },
+  dashboardContent: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
   statusBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingVertical: 12,
-    paddingTop: 50, // Account for notch
+    paddingTop: 20,
   },
   time: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#000000',
   },
   statusIcons: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
   },
   signalBars: {
     flexDirection: 'row',
     gap: 2,
-    marginRight: 8,
   },
   bar: {
     width: 3,
     height: 12,
-    borderRadius: 2,
+    borderRadius: 1,
+    backgroundColor: '#000000',
   },
   barActive: {
     backgroundColor: '#000000',
@@ -413,8 +395,90 @@ const styles = StyleSheet.create({
   barInactive: {
     backgroundColor: '#d1d5db',
   },
+  wifiIcon: {
+    fontSize: 14,
+  },
   batteryIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  batteryBody: {
+    width: 22,
+    height: 11,
+    borderWidth: 1,
+    borderColor: '#000000',
+    borderRadius: 2,
+    backgroundColor: '#000000',
+  },
+  batteryTip: {
+    width: 1,
+    height: 6,
+    backgroundColor: '#000000',
+    marginLeft: 1,
+  },
+  welcomeText: {
+    fontSize: 22,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#000000',
+    marginVertical: 30,
+  },
+  devicesScrollView: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  deviceCard: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+  },
+  deviceIdBadge: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 20,
+  },
+  deviceIdText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  statusLabel: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  statusPill: {
+    borderRadius: 25,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  statusPillTrue: {
+    backgroundColor: '#ef4444',
+  },
+  statusPillFalse: {
+    backgroundColor: '#22c55e',
+  },
+  statusPillText: {
     fontSize: 16,
+    fontWeight: '600',
+  },
+  statusPillTextTrue: {
+    color: '#ffffff',
+  },
+  statusPillTextFalse: {
+    color: '#ffffff',
   },
   header: {
     fontSize: 20,
@@ -507,87 +571,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    gap: 8,
-    marginBottom: 32,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 25,
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-  },
-  activeTab: {
-    backgroundColor: '#3b82f6',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  activeTabText: {
-    color: '#ffffff',
-  },
-  contentContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  monitoringContent: {
-    alignItems: 'center',
-  },
-  circularProgressContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 32,
-  },
-  progressContent: {
-    alignItems: 'center',
-  },
-  powerIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  powerValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  timeText: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  statusBadge: {
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  normalBadge: {
-    backgroundColor: '#dcfce7',
-  },
-  alertBadge: {
-    backgroundColor: '#fee2e2',
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  normalText: {
-    color: '#166534',
-  },
-  alertText: {
-    color: '#dc2626',
-  },
   bottomIndicator: {
     height: 4,
     width: 128,
-    backgroundColor: '#d1d5db',
+    backgroundColor: '#000000',
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
 });
 
