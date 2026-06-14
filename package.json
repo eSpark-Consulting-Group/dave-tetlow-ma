@@ -13,7 +13,7 @@
     "@react-native/new-app-screen": "0.80.1",
     "react": "19.2.7",
     "react-native": "0.80.1",
-    "react-native-ble-plx": "^3.5.0",
+    "react-native-ble-plx": "^3.5.1",
     "react-native-circular-progress": "^1.4.1",
     "react-native-permissions": "^5.5.3",
     "react-native-svg": "^15.12.0",
